@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!./venv/bin/python3
 
 import argparse
 import configparser
@@ -155,6 +155,7 @@ class JennovOffloader:
                 
         except ET.ParseError as e:
             self.log.error(f"Failed to parse query response: {e}")
+            self.log.error(response_text)
             
         self.log.info(f"Found {len(recordings)} recordings")
         return recordings
