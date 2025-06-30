@@ -61,6 +61,7 @@ class JennovOffloader:
 
         format = self.config.get('DEFAULT', 'log_format', fallback='[%(asctime)s %(levelname)s] %(message)s')
 
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
         logging.basicConfig(level=logging.getLevelName(level), format=format)
 
     def init_camera_client(self):
@@ -180,7 +181,8 @@ class JennovOffloader:
         try:
             self.log.info(f"Downloading {filename} from {camera_name} ({recording['filesize']} bytes)")
             
-            response = self.session.get(download_url, stream=True)
+            # Set timeout: 30 seconds to connect, 300 seconds (5 minutes) to read
+            response = self.session.get(download_url, stream=True, timeout=(30, 300))
             response.raise_for_status()
             
             with open(local_path, 'wb') as f:
@@ -266,14 +268,21 @@ class JennovOffloader:
             
         self.log.info(f"Found {len(recordings)} recordings for {camera_name}")
         
+        elapsed = 0
+
         # Process recordings
-        for recording in recordings:
+        for i, recording in enumerate(recordings, start=1):
             filename = os.path.basename(recording['filepath'])
             
             if self.args.query_only:
-                self.log.info(type(recording['start_time']))
                 self.log.info(f"{camera_name}: {filename} {recording['start_time']} {recording['filesize']} bytes")
                 continue
+
+            t = time.time()
+            avg = elapsed / i 
+            estimated_remaining = avg * (len(recordings) - i)
+
+            self.log.info(f"Processing {i}/{len(recordings)}: {filename} from {camera_name} (Estimated remaining: {estimated_remaining:.1f}s)...")
 
             # Download if not delete-only
             if not self.args.delete_only:
@@ -284,6 +293,9 @@ class JennovOffloader:
             # Delete if not download-only
             if not self.args.download_only:
                 self.delete_recording(recording, camera_url, camera_name)
+
+            self.log.info(f"Processing took {time.time()-t:.2f} seconds.")
+            elapsed += time.time() - t
 
     def start(self):
         self.log.info("JennovOffloader starting...")
